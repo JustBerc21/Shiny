@@ -1,8 +1,10 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using System.Linq;
 using System.IO;
+using UnityEngine.Networking;
 
 public class GameManager : MonoBehaviour
 {
@@ -41,6 +43,7 @@ public class GameManager : MonoBehaviour
         previousStates = new Stack<GameState>();
         currentStep = GameStep.WaitingForMovement;
 
+        InvokeRepeating("CheckForRemoteMovements", 0, 1.0f);
     }
 
     public void Click(PawnInterface pawn)
@@ -70,16 +73,7 @@ public class GameManager : MonoBehaviour
         {
             return;
         }
-        if (CanMove(_selectedPawn.GamePawn, place))
-        {
-            currentStep = GameStep.Moving;
-            _movingAnimationPlace = place;
-            _movingAnimationDestination = place.transform.position + new Vector3(0, 1.5f, 0);
-            _movingAnimationOrigin = _selectedPawn.transform.position;
-            _movingAnimationPawn = _selectedPawn;
-            _movingAnimationTime = 0.0f;
-            _selectedPawn = null;
-        }
+        MakeMove(_selectedPawn, place);
     }
     public bool CanMove(Pawn pawn, Area place)
     {
@@ -140,8 +134,15 @@ public class GameManager : MonoBehaviour
             //random move
             if (Input.GetKeyUp(KeyCode.I))
             {
-                _randomPlayer.RandomMove(currentGame);
-                UpdateAllPawnInterfaces();
+                _randomPlayer.RandomMove(currentGame, out var pawnToMove, out var placeToMove);
+                if (pawnToMove != null && placeToMove != null)
+                {
+                    var listOfInterfacePawns = pawns.ToList();
+                    var p = listOfInterfacePawns.Find(
+                    ip => ip.GamePawn.CurrentPlace == pawnToMove.CurrentPlace);
+                    MakeMove(p, placeToMove);
+                }
+
             }
             //undo
             if (Input.GetKeyUp(KeyCode.Z) && previousStates.Count > 0)
@@ -208,4 +209,65 @@ public class GameManager : MonoBehaviour
         return allMovements.ToArray();
     }
 
+    public void MakeMove(PawnInterface pawn, Area place)
+    {
+        if (CanMove(pawn.GamePawn, place))
+        {
+            currentStep = GameStep.Moving;
+            _movingAnimationPlace = place;
+            _movingAnimationDestination = place.transform.position;
+            _movingAnimationOrigin = pawn.transform.position;
+            _movingAnimationPawn = pawn;
+            _movingAnimationTime = 0.0f;
+            _selectedPawn = null;
+        }
+    }
+
+    private void CheckForRemoteMovements()
+    {
+        if (currentStep == GameStep.WaitingForMovement)
+        {
+            StartCoroutine(WaitForRequest("localhost:3000/getMove"));
+        }
+    }
+
+    private IEnumerator WaitForRequest(string url)
+    {
+        UnityWebRequest req = UnityWebRequest.Get(url);
+
+        yield return req.SendWebRequest();
+        if (!(req.result == UnityWebRequest.Result.ConnectionError))
+        {
+            if (req.result == UnityWebRequest.Result.Success)
+            {
+                Debug.Log("WWW Ok!: " + req.downloadHandler.text);
+                MakeRemoteMove(req.downloadHandler.text);
+            }
+        }
+        else
+        {
+            Debug.Log("WWW Error: " + req.error);
+        }
+    }
+    private void MakeRemoteMove(string serverResult)
+    {
+        if (currentStep != GameStep.WaitingForMovement)
+        {
+            return;
+        }
+        try{
+            string[] values = serverResult.Split(',');
+            Debug.Log(values[0] + "" + values[1]);
+            int p = int.Parse(values[0]);
+            string d = values[1];
+            PawnInterface pawnToMove = pawns[p];
+            Area destination = GameObject.Find(d).GetComponent<Area>();
+
+            MakeMove(pawnToMove, destination);
+        }
+        catch (Exception/* e*/)
+        {
+            //Debug.Log(e);
+        }
+    }
 }

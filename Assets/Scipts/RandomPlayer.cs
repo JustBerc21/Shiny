@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class RandomPlayer
 {
-    public void RandomMove(GameState state)
+    public void RandomMove(GameState state, out Pawn pawn, out Area place)
     {
 
         Movement[] possibleMovements = GameManager.Instance.GetAllMovements();
@@ -12,10 +12,13 @@ public class RandomPlayer
         {
             int r = Random.Range(0, possibleMovements.Length);
             Movement move = possibleMovements[r];
-            GameManager.Instance.Move(move.PawnToMove, move.Destination);
+            pawn = move.PawnToMove;
+            place = move.Destination;
         }
         else
         {
+            pawn = null;
+            place = null;
             Debug.LogWarning("Couldn't find a valid move.");
         }
 
