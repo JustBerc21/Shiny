@@ -36,7 +36,7 @@ public class GameManager : MonoBehaviour
         {
             pawns[i].GamePawn = currentGame.Pawns[i];
             pawns[i].transform.position =
-           currentGame.Pawns[i].CurrentPlace.transform.position + new Vector3(0, 1.5f, 0);
+           currentGame.Pawns[i].CurrentPlace.transform.position + new Vector3(0, currentGame.Pawns[i].CurrentPlace.gameObject.GetComponent<BoxCollider>().size.y / 2, 0); 
         }
 
         places = FindObjectsOfType<Area>();
@@ -105,7 +105,7 @@ public class GameManager : MonoBehaviour
     }
     public void UpdatePawnInterface(PawnInterface pawn)
     {
-        pawn.transform.position = pawn.GamePawn.CurrentPlace.transform.position + new Vector3(0, 1.5f, 0);
+        pawn.transform.position = pawn.GamePawn.CurrentPlace.transform.position + new Vector3(0, pawn.GamePawn.CurrentPlace.gameObject.GetComponent<BoxCollider>().size.y/2, 0);
     }
 
 
@@ -187,7 +187,7 @@ public class GameManager : MonoBehaviour
         {
             pawns[i].GamePawn = currentGame.Pawns[i];
             pawns[i].transform.position =
-           currentGame.Pawns[i].CurrentPlace.transform.position + new Vector3(0, 1.5f, 0);
+           currentGame.Pawns[i].CurrentPlace.transform.position + new Vector3(0, currentGame.Pawns[i].CurrentPlace.gameObject.GetComponent<BoxCollider>().size.y / 2, 0);
         }
     }
 
