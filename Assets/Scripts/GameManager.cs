@@ -48,7 +48,7 @@ public class GameManager : MonoBehaviour
         {
             pawns[i].GamePawn = currentGame.Pawns[i];
             pawns[i].transform.position =
-           currentGame.Pawns[i].CurrentPlace.transform.position + new Vector3(0, 1.5f, 0);
+           currentGame.Pawns[i].CurrentPlace.transform.position + new Vector3(0, currentGame.Pawns[i].CurrentPlace.gameObject.GetComponent<BoxCollider>().size.y / 2, 0);
         }
 
         places = FindObjectsOfType<Area>();
@@ -190,7 +190,7 @@ public class GameManager : MonoBehaviour
     
     public void UpdatePawnInterface(PawnInterface pawn)
     {
-        pawn.transform.position = pawn.GamePawn.CurrentPlace.transform.position + new Vector3(0, 1.5f, 0);
+        pawn.transform.position = pawn.GamePawn.CurrentPlace.transform.position + new Vector3(0, pawn.GamePawn.CurrentPlace.gameObject.GetComponent<BoxCollider>().size.y / 2, 0);
     }
 
 
@@ -253,14 +253,16 @@ public class GameManager : MonoBehaviour
         if (currentStep == GameStep.Moving)
         {
             _movingAnimationTime += Time.deltaTime;
-            Vector3 p = Vector3.Lerp(_movingAnimationOrigin, _movingAnimationDestination + new Vector3(0, 1.5f, 0), _movingAnimationTime / movingAnimationDuration);
+            Vector3 p = Vector3.Lerp(_movingAnimationOrigin, _movingAnimationDestination + new Vector3(0, _movingAnimationPawn.GamePawn.CurrentPlace.gameObject.GetComponent<BoxCollider>().size.y / 2, 0), _movingAnimationTime / movingAnimationDuration);
             _movingAnimationPawn.transform.position = p;
+            _movingAnimationPawn.gameObject.GetComponentInChildren<Animator>().SetBool("Walk", true);
 
             if (_movingAnimationTime > movingAnimationDuration)
             {
                 Move(_movingAnimationPawn.GamePawn,
                 _movingAnimationPlace);
                 UpdateAllPawnInterfaces();
+                _movingAnimationPawn.gameObject.GetComponentInChildren<Animator>().SetBool("Walk", false);
                 currentStep = GameStep.WaitingForMovement;
             }
         }
@@ -272,7 +274,7 @@ public class GameManager : MonoBehaviour
         {
             pawns[i].GamePawn = currentGame.Pawns[i];
             pawns[i].transform.position =
-           currentGame.Pawns[i].CurrentPlace.transform.position + new Vector3(0, 1.5f, 0);
+           currentGame.Pawns[i].CurrentPlace.transform.position + new Vector3(0, pawns[i].GamePawn.CurrentPlace.gameObject.GetComponent<BoxCollider>().size.y / 2, 0); ;
         }
     }
 
