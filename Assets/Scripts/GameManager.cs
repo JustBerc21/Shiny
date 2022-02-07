@@ -9,6 +9,13 @@ using UnityEngine.UI;
 
 public class GameManager : MonoBehaviour
 {
+    //Turns
+    private int Turns = 1;
+    private int TurnHalves;
+    [SerializeField] private Text TurnText;
+    private TeamType TeamTurn;
+
+    //Score
     [SerializeField] int RedScore;
     [SerializeField] int BlueScore;
     [SerializeField] Text RedScoreText;
@@ -33,8 +40,11 @@ public class GameManager : MonoBehaviour
     int placeSelectedPawnTeam;
     int selectedPawnType; //1 raven, 2 racoon
     int placeSelectedPawnType;
+
+    //Raccoon Theft
     Pawn StealablePawn;
-    [SerializeField]private Item lastItem;
+    [SerializeField] private Item lastItem;
+
     public static GameManager Instance { get; private set; }
     private void Start()
     {
@@ -56,6 +66,77 @@ public class GameManager : MonoBehaviour
         currentStep = GameStep.WaitingForMovement;
 
         InvokeRepeating("CheckForRemoteMovements", 0, 1.0f);
+
+        int r = UnityEngine.Random.Range(0, 2);
+        if (r == 0) TeamTurn = TeamType.RED;
+        else TeamTurn = TeamType.BLUE;
+
+        Debug.Log(TeamTurn);
+    }
+
+    public void Update()
+    {
+        if (currentStep == GameStep.WaitingForMovement)
+        {
+            //random move
+            if (Input.GetKeyUp(KeyCode.I))
+            {
+                _randomPlayer.RandomMove(currentGame, out var pawnToMove, out var placeToMove);
+                if (pawnToMove != null && placeToMove != null)
+                {
+                    var listOfInterfacePawns = pawns.ToList();
+                    var p = listOfInterfacePawns.Find(
+                    ip => ip.GamePawn.CurrentPlace == pawnToMove.CurrentPlace);
+                    MakeMove(p, placeToMove);
+                }
+
+            }
+            //undo
+            if (Input.GetKeyUp(KeyCode.Z) && previousStates.Count > 0)
+            {
+                currentGame = previousStates.Pop();
+                UpdateAllPawnInterfaces();
+            }
+            //save
+            if (Input.GetKeyUp(KeyCode.S))
+            {
+                string json = JsonUtility.ToJson(currentGame);
+                File.WriteAllText("save.json", json);
+            }
+            //load
+            if (Input.GetKeyUp(KeyCode.L))
+            {
+                string json = File.ReadAllText("save.json");
+                currentGame = JsonUtility.FromJson<GameState>(json);
+                UpdateAllPawnInterfaces();
+            }
+        }
+
+        if (currentStep == GameStep.Moving)
+        {
+            _movingAnimationTime += Time.deltaTime;
+            Vector3 p = Vector3.Lerp(_movingAnimationOrigin, _movingAnimationDestination + new Vector3(0, _movingAnimationPawn.GamePawn.CurrentPlace.gameObject.GetComponent<BoxCollider>().size.y / 2, 0), _movingAnimationTime / movingAnimationDuration);
+            _movingAnimationPawn.transform.position = p;
+            _movingAnimationPawn.gameObject.GetComponentInChildren<Animator>().SetBool("Walk", true);
+
+            if (_movingAnimationTime > movingAnimationDuration)
+            {
+                Move(_movingAnimationPawn.GamePawn,
+                _movingAnimationPlace);
+                UpdateAllPawnInterfaces();
+                _movingAnimationPawn.gameObject.GetComponentInChildren<Animator>().SetBool("Walk", false);
+                currentStep = GameStep.WaitingForMovement;
+            }
+        }
+
+        if (TeamTurn == TeamType.RED) TurnText.color = Color.red;
+        else TurnText.color = Color.blue;
+        if (TurnHalves >= 2)
+        {
+            Turns += 1;
+            TurnHalves = 0;
+        }
+        TurnText.text = "Turn " + Turns;
     }
 
     public void Click(PawnInterface pawn)
@@ -69,7 +150,7 @@ public class GameManager : MonoBehaviour
         {
             _selectedPawn = null;
         }
-        else
+        else if (pawn.GamePawn.Team == TeamTurn)
         {
             _selectedPawn = pawn;
         }
@@ -212,61 +293,6 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    public void Update()
-    {
-        if (currentStep == GameStep.WaitingForMovement)
-        {
-            //random move
-            if (Input.GetKeyUp(KeyCode.I))
-            {
-                _randomPlayer.RandomMove(currentGame, out var pawnToMove, out var placeToMove);
-                if (pawnToMove != null && placeToMove != null)
-                {
-                    var listOfInterfacePawns = pawns.ToList();
-                    var p = listOfInterfacePawns.Find(
-                    ip => ip.GamePawn.CurrentPlace == pawnToMove.CurrentPlace);
-                    MakeMove(p, placeToMove);
-                }
-
-            }
-            //undo
-            if (Input.GetKeyUp(KeyCode.Z) && previousStates.Count > 0)
-            {
-                currentGame = previousStates.Pop();
-                UpdateAllPawnInterfaces();
-            }
-            //save
-            if (Input.GetKeyUp(KeyCode.S))
-            {
-                string json = JsonUtility.ToJson(currentGame);
-                File.WriteAllText("save.json", json);
-            }
-            //load
-            if (Input.GetKeyUp(KeyCode.L))
-            {
-                string json = File.ReadAllText("save.json");
-                currentGame = JsonUtility.FromJson<GameState>(json);
-                UpdateAllPawnInterfaces();
-            }
-        }
-        
-        if (currentStep == GameStep.Moving)
-        {
-            _movingAnimationTime += Time.deltaTime;
-            Vector3 p = Vector3.Lerp(_movingAnimationOrigin, _movingAnimationDestination + new Vector3(0, _movingAnimationPawn.GamePawn.CurrentPlace.gameObject.GetComponent<BoxCollider>().size.y / 2, 0), _movingAnimationTime / movingAnimationDuration);
-            _movingAnimationPawn.transform.position = p;
-            _movingAnimationPawn.gameObject.GetComponentInChildren<Animator>().SetBool("Walk", true);
-
-            if (_movingAnimationTime > movingAnimationDuration)
-            {
-                Move(_movingAnimationPawn.GamePawn,
-                _movingAnimationPlace);
-                UpdateAllPawnInterfaces();
-                _movingAnimationPawn.gameObject.GetComponentInChildren<Animator>().SetBool("Walk", false);
-                currentStep = GameStep.WaitingForMovement;
-            }
-        }
-    }
 
     private void UpdateAllPawnInterfaces()
     {
@@ -388,6 +414,10 @@ public class GameManager : MonoBehaviour
         {
             Debug.Log("Game Ended.");
         }
+
+        if (TeamTurn == TeamType.BLUE) TeamTurn = TeamType.RED;
+        else TeamTurn = TeamType.BLUE;
+        TurnHalves += 1;
     }
 
     //============================
