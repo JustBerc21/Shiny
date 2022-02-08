@@ -67,11 +67,16 @@ public class GameManager : MonoBehaviour
 
         InvokeRepeating("CheckForRemoteMovements", 0, 1.0f);
 
+        //teams
         int r = UnityEngine.Random.Range(0, 2);
         if (r == 0) TeamTurn = TeamType.RED;
         else TeamTurn = TeamType.BLUE;
-
         Debug.Log(TeamTurn);
+
+        foreach (var i in currentGame.Items)
+        {
+            if (i.itemObject != null) i.itemObject.transform.position = i.Position.transform.position + new Vector3(0,1,0);
+        }
     }
 
     public void Update()
@@ -301,6 +306,23 @@ public class GameManager : MonoBehaviour
             pawns[i].GamePawn = currentGame.Pawns[i];
             pawns[i].transform.position =
            currentGame.Pawns[i].CurrentPlace.transform.position + new Vector3(0, pawns[i].GamePawn.CurrentPlace.gameObject.GetComponent<BoxCollider>().size.y / 2, 0); ;
+        }
+
+        foreach (var i in currentGame.Items)
+        {
+            if (i.itemObject != null)i.itemObject.transform.position = i.Position.transform.position + new Vector3(0, 1, 0);
+        }
+        foreach (var i in currentGame.RedItems) 
+        {
+            int o = 0;
+            i.itemObject.transform.position = new Vector3(0, 1, -20 - o);
+            o += 2;
+        }
+        foreach (var i in currentGame.BlueItems)
+        {
+            int o = 0;
+            i.itemObject.transform.position = new Vector3(0, 1, 20 + o);
+            o += 2;
         }
     }
 

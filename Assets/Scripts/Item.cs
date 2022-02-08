@@ -12,6 +12,8 @@ public class Item
     private ItemType type;
     [SerializeField]
     private int itemValue;
+    [SerializeField]
+    public GameObject itemObject;
 
     public Area Position
     {
