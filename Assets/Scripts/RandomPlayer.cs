@@ -7,7 +7,7 @@ public class RandomPlayer
     public void RandomMove(GameState state, out Pawn pawn, out Area place)
     {
 
-        Movement[] possibleMovements = GameManager.Instance.GetAllMovements();
+        Movement[] possibleMovements = GameManager.Instance.CurrentGame.GetAllMovements();
         if (possibleMovements != null && possibleMovements.Length > 0)
         {
             int r = Random.Range(0, possibleMovements.Length);

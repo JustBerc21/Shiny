@@ -17,4 +17,9 @@ public class Movement
         destination = areaDestination;
         pawnToMove = pawn;
     }
+
+    public override string ToString()
+    {
+        return origin + " -> " + destination;
+    }
 }

@@ -10,19 +10,15 @@ using UnityEngine.UI;
 public class GameManager : MonoBehaviour
 {
     //Turns
-    private int Turns = 1;
-    private int TurnHalves;
     [SerializeField] private Text TurnText;
-    private TeamType TeamTurn;
 
     //Score
-    [SerializeField] int RedScore;
-    [SerializeField] int BlueScore;
     [SerializeField] Text RedScoreText;
     [SerializeField] Text BlueScoreText;
 
     [SerializeField] private GameState currentGame;
-    [SerializeField] private PawnInterface[] pawns;
+    public GameState CurrentGame => currentGame;
+    [SerializeField] private List<PawnInterface> pawns;
     private Area[] places;
     private PawnInterface _selectedPawn;
     private RandomPlayer _randomPlayer = new RandomPlayer();
@@ -43,7 +39,7 @@ public class GameManager : MonoBehaviour
 
     //Raccoon Theft
     Pawn StealablePawn;
-    [SerializeField] private Item lastItem;
+    
 
     public static GameManager Instance { get; private set; }
     private void Start()
@@ -54,7 +50,7 @@ public class GameManager : MonoBehaviour
         }
         Instance = this;
 
-        for (var i = 0; i < pawns.Length; i++)
+        for (var i = 0; i < pawns.Count; i++)
         {
             pawns[i].GamePawn = currentGame.Pawns[i];
             pawns[i].transform.position =
@@ -67,18 +63,31 @@ public class GameManager : MonoBehaviour
 
         InvokeRepeating("CheckForRemoteMovements", 0, 1.0f);
 
+
         //teams
         int r = UnityEngine.Random.Range(0, 2);
-        if (r == 0) TeamTurn = TeamType.RED;
-        else TeamTurn = TeamType.BLUE;
-        Debug.Log(TeamTurn);
+        if (r == 0 || currentGame.Singleplayer) currentGame.TeamTurn = TeamType.RED;
+        else currentGame.TeamTurn = TeamType.BLUE;
 
+        //Items
         foreach (var i in currentGame.Items)
         {
+            int rp = UnityEngine.Random.Range(0, places.Length);
+            i.Position = places[rp];
+            foreach (var i2 in currentGame.Items)
+            {
+                int rp2 = UnityEngine.Random.Range(0, places.Length);
+                int rp3 = UnityEngine.Random.Range(0, places.Length);
+                if (i2.Position == i.Position) i.Position = places[rp2];
+                if (i.Position.TeamBase != TeamType.NONE) i.Position = places[rp3];
+            }
             if (i.itemObject != null) i.itemObject.transform.position = i.Position.transform.position + new Vector3(0,1,0);
         }
     }
 
+    /// 
+    /// UPDATE
+    ///
     public void Update()
     {
         if (currentStep == GameStep.WaitingForMovement)
@@ -115,6 +124,15 @@ public class GameManager : MonoBehaviour
                 currentGame = JsonUtility.FromJson<GameState>(json);
                 UpdateAllPawnInterfaces();
             }
+            if (Input.GetKeyUp(KeyCode.A))
+            {
+                MakeAIMove();
+            }
+
+            if (Input.GetKeyUp(KeyCode.M))
+            {
+                MiniMax();
+            }
         }
 
         if (currentStep == GameStep.Moving)
@@ -134,14 +152,7 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        if (TeamTurn == TeamType.RED) TurnText.color = Color.red;
-        else TurnText.color = Color.blue;
-        if (TurnHalves >= 2)
-        {
-            Turns += 1;
-            TurnHalves = 0;
-        }
-        TurnText.text = "Turn " + Turns;
+        TurnTextUpdate();
     }
 
     public void Click(PawnInterface pawn)
@@ -155,7 +166,7 @@ public class GameManager : MonoBehaviour
         {
             _selectedPawn = null;
         }
-        else if (pawn.GamePawn.Team == TeamTurn)
+        else if (pawn.GamePawn.Team == currentGame.TeamTurn)
         {
             _selectedPawn = pawn;
         }
@@ -301,7 +312,7 @@ public class GameManager : MonoBehaviour
 
     private void UpdateAllPawnInterfaces()
     {
-        for (var i = 0; i < pawns.Length; i++)
+        for (var i = 0; i < pawns.Count; i++)
         {
             pawns[i].GamePawn = currentGame.Pawns[i];
             pawns[i].transform.position =
@@ -326,23 +337,13 @@ public class GameManager : MonoBehaviour
         }
     }
 
-
-    public Movement[] GetAllMovements()
+    private void TurnTextUpdate() 
     {
-        List<Movement> allMovements = new List<Movement>();
-        foreach (var p in currentGame.Pawns)
-        {
-            foreach (var c in p.CurrentPlace.Connections)
-            {
-                var m = new Movement(p.CurrentPlace, c.Destination, p);
-                if (c.Type == p.Color)
-                {
-                    allMovements.Add(m);
-                } 
-            }
-        }
-        return allMovements.ToArray();
+        if (currentGame.TeamTurn == TeamType.RED) TurnText.color = Color.red;
+        else TurnText.color = Color.blue;
+        TurnText.text = "Turn " + currentGame.Turns;
     }
+    
 
     //Move Animation
 
@@ -365,81 +366,16 @@ public class GameManager : MonoBehaviour
     public void Move(Pawn pawn, Area place)
     {
         previousStates.Push(currentGame.DeepCopy());
-        pawn.CurrentPlace = place;
-        
+        currentGame.Move(pawn, place);
 
-        if (currentGame.Items.Contains(pawn.HeldItem)) 
+        //Score Update
+        RedScoreText.text = "RED SCORE: " + currentGame.RedScore;
+        BlueScoreText.text = "BLUE SCORE: " + currentGame.BlueScore;
+
+        if (currentGame.GameEnded())
         {
-            pawn.HeldItem.Position = pawn.CurrentPlace;
+            Debug.Log("Game Ended");
         }
-        if (pawn.Team == pawn.CurrentPlace.TeamBase && currentGame.Items.Contains(pawn.HeldItem))
-        {
-            
-            if (pawn.Team == TeamType.RED)
-            {
-                RedScore += pawn.HeldItem.ItemValue;
-                currentGame.RedItems.Add(pawn.HeldItem);
-            }
-            if (pawn.Team == TeamType.BLUE)
-            {
-                BlueScore += pawn.HeldItem.ItemValue;
-                currentGame.BlueItems.Add(pawn.HeldItem);
-            }
-            currentGame.Items.Remove(pawn.HeldItem);
-
-            RedScoreText.text = "RED SCORE: " + RedScore;
-            BlueScoreText.text = "BLUE SCORE: " + BlueScore;
-
-
-        }
-
-        if (pawn.Color == ConnectionType.RACCOON && pawn.Team != place.TeamBase && place.TeamBase != TeamType.NONE) 
-        {
-
-            if (place.TeamBase == TeamType.RED && currentGame.RedItems.Count >= 1)
-            {
-                foreach (var i in currentGame.RedItems)
-                {
-                    if (lastItem.Type != ItemType.BLACK) lastItem = i;
-                    if (i.Type == ItemType.BLACK) lastItem = i;
-                }
-                if (!currentGame.Items.Contains(pawn.HeldItem)) pawn.HeldItem = lastItem;
-                RedScore -= lastItem.ItemValue;
-                RedScoreText.text = "RED SCORE: " + RedScore;
-                currentGame.Items.Add(lastItem);
-                currentGame.RedItems.Remove(lastItem);               
-            }
-            if (place.TeamBase == TeamType.BLUE && currentGame.BlueItems.Count >= 1)
-            {
-                foreach (var i in currentGame.BlueItems)
-                {
-                    if (lastItem.Type != ItemType.BLACK) lastItem = i;
-                    if (i.Type == ItemType.BLACK) lastItem = i;
-                }
-                if (!currentGame.Items.Contains(pawn.HeldItem)) pawn.HeldItem = lastItem;
-                BlueScore -= lastItem.ItemValue;
-                BlueScoreText.text = "BLUE SCORE: " + BlueScore;
-                currentGame.Items.Add(lastItem);
-                currentGame.BlueItems.Remove(lastItem);
-            }
-        }
-
-        for (var i = currentGame.Items.Count - 1; i >= 0; i--)
-        {
-            if (currentGame.Items[i].Position == place)
-            {
-                pawn.HeldItem = currentGame.Items[i];
-                //currentGame.Items.RemoveAt(i);
-            }
-        }
-        if (currentGame.Items.Count == 0)
-        {
-            Debug.Log("Game Ended.");
-        }
-
-        if (TeamTurn == TeamType.BLUE) TeamTurn = TeamType.RED;
-        else TeamTurn = TeamType.BLUE;
-        TurnHalves += 1;
     }
 
     //============================
@@ -493,4 +429,227 @@ public class GameManager : MonoBehaviour
             //Debug.Log(e);
         }
     }
+
+
+    //
+    //AI MOVE
+    //
+    public void MakeAIMove()
+    {
+        // Duplicates the current state
+        var initialState = currentGame.DeepCopy();
+
+        // List of open and closed nodes
+        List<Node> openNodes = new List<Node>();
+        List<Node> closedNodes = new List<Node>();
+
+        // Initial Node, which is added to the list of open nodes
+        Node initialNode = new Node(initialState);
+        initialNode.CalculateHeuristicValue_FullGame();
+        openNodes.Add(initialNode);
+
+        var iterationsLimit = 1000;
+        int count = 0;
+        while (openNodes.Count > 0)
+        {
+            count++;
+
+            // Debug Info 
+            Debug.Log(count + ") Open Nodes");
+            foreach (Node n in openNodes)
+            {
+                Debug.Log(n);
+            }
+            Debug.Log(count + ") Closed Nodes");
+            foreach (Node n in closedNodes)
+            {
+                Debug.Log(n);
+            }
+            Debug.Log("-----------------------------------");
+
+
+            // Picks a node from the open set (which is set as the current) and moves it to the closed set
+            // !!! Currently picks a random one instead of the best estimative (A*)
+            var bestNode = openNodes[UnityEngine.Random.Range(0, openNodes.Count)];
+            openNodes.Remove(bestNode);
+            closedNodes.Add(bestNode);
+
+
+            // Calculates all possible movements of the current node
+            var allMovements = bestNode.TheGameState.GetAllMovements();
+
+            foreach (Movement m in allMovements)
+            {
+                // Creates a new node (the state is same as the node we are expanding)
+                Node newNode = new Node(bestNode.TheGameState.DeepCopy());
+
+                // Register the set of movements to reach this place
+                // (the movements of the previous node plus the new movement)
+                newNode.PreviousMovements.AddRange(bestNode.PreviousMovements);
+                newNode.PreviousMovements.Add(m);
+
+
+                // --- Makes the game move ---
+
+                // Finds the pawn
+                var pawn = newNode.TheGameState.Pawns.Find(p => p.CurrentPlace == m.PawnToMove.CurrentPlace);
+
+                newNode.TheGameState.Move(pawn, m.Destination);
+
+
+                // Is this the desired state? (all items collected, meaning end of the game)
+                if (newNode.TheGameState.GameEnded())
+                {
+                    Movement selectedMove;
+                    if (bestNode.PreviousMovements.Count > 0)
+                    {
+                        selectedMove = bestNode.PreviousMovements[0];
+                    }
+                    else
+                    {
+                        selectedMove = m;
+                    }
+
+                    print("Found Solution! Make this move " + selectedMove.Origin + " " + selectedMove.Destination);
+                    print("Number of nodes " + closedNodes.Count);
+
+                    // This is it (pick the move)
+                    // Note: the identified pawn is in the game state clone
+                    // we need to identify the corresponding pawn in the game's current state
+                    // (the pawn that has the same position)
+                    var pi = pawns.Find(p => p.GamePawn.CurrentPlace == selectedMove.Origin);
+                    MakeMove(pi, selectedMove.Destination);
+
+                    return;
+                }
+
+                // Is this node in the open set? If so, ignore.
+                if (openNodes.Any(n => n.TheGameState.Equals(newNode.TheGameState)))
+                {
+                    continue;
+                }
+
+                // Is this node in the closed set? If so, ignore.
+                if (closedNodes.Any(n => n.TheGameState.Equals(newNode.TheGameState)))
+                {
+                    continue;
+                }
+
+                // Otherwise, adds the generated node to the set of open nodes for further analysis
+                openNodes.Add(newNode);
+                newNode.CalculateHeuristicValue_FullGame();
+            }
+
+            if (count >= iterationsLimit)
+            {
+                Debug.Log("Too many interations");
+                break;
+            }
+
+        }
+
+        // If the flow reaches this place, there is no solution
+        Debug.Log("Can't find a move");
+    }
+
+    //
+    //MINIMAX
+    //
+
+    private void MiniMax()
+    {
+
+        // Duplicates the current state
+        var initialState = currentGame.DeepCopy();
+
+        // List of open and closed nodes
+        List<Node> openNodes = new List<Node>();
+        List<Node> closedNodes = new List<Node>();
+
+        Node initialNode = new Node(initialState);
+        openNodes.Add(initialNode);
+
+        var maxDepth = 5;
+        while (openNodes.Count > 0)
+        {
+
+            // Debug Info 
+            //Debug.Log("Open Nodes");
+            //foreach (Node n in openNodes)
+            //{
+            //    Debug.Log(n);
+            //}
+            //Debug.Log("Closed Nodes");
+            //foreach (Node n in closedNodes)
+            //{
+            //    Debug.Log(n);
+            //}
+            //Debug.Log("-----------------------------------");
+
+
+            // Picks the first node in the open set (this works as a breadth-first)
+            var bestNode = openNodes[0];
+            openNodes.Remove(bestNode);
+            closedNodes.Add(bestNode);
+
+            // Skips expansion for leaf nodes (game ended or max depth)
+            if (bestNode.TheGameState.GameEnded() || bestNode.PreviousMovements.Count > maxDepth)
+            {
+                continue;
+            }
+
+
+            // Calculates all possible movements of the current node
+            var allMovements = bestNode.TheGameState.GetAllMovements();
+
+            foreach (Movement m in allMovements)
+            {
+                // Creates a new node (the state is same as the node we are expanding)
+                Node newNode = new Node(bestNode.TheGameState.DeepCopy());
+                bestNode.Children.Add(newNode);
+
+                // Register the set of movements to reach this place
+                // (the movements of the previous node plus the new movement)
+                newNode.PreviousMovements.AddRange(bestNode.PreviousMovements);
+                newNode.PreviousMovements.Add(m);
+
+
+                // Makes the game move
+                // First finds the pawn...
+                var pawn = newNode.TheGameState.Pawns.Find(p => p.CurrentPlace == m.PawnToMove.CurrentPlace);
+                // ... and then orders the move
+                newNode.TheGameState.Move(pawn, m.Destination);
+
+
+                // Otherwise, adds the generated node to the set of open nodes for further analysis
+                openNodes.Add(newNode);
+
+            }
+
+        }
+
+        // Prints all nodes
+        Debug.Log("Tree expanded");
+        foreach (Node n in closedNodes)
+        {
+            Debug.Log(n);
+        }
+
+
+
+
+        // Gets the best score for player 2 within the moves
+        int bestScorePlayer1 = closedNodes.Max(n => n.TheGameState.BlueScore);
+
+        // Picks a random node with the best score
+        List<Node> bestMoves = closedNodes.FindAll(n => n.TheGameState.RedScore == bestScorePlayer1);
+        Node randomBestNode = bestMoves[UnityEngine.Random.Range(0, bestMoves.Count)];
+
+        // Makes that move
+        Movement selectedMove = randomBestNode.PreviousMovements[0];
+        var pi = pawns.Find(p => p.GamePawn.CurrentPlace == selectedMove.PawnToMove.CurrentPlace);
+        MakeMove(pi, selectedMove.Destination);
+
+    }
+    
 }
